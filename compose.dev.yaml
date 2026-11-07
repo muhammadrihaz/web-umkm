@@ -1,0 +1,21 @@
+services:
+  app:
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - uploads:/var/www/html/storage/app/public
+  queue:
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - uploads:/var/www/html/storage/app/public
+  scheduler:
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - uploads:/var/www/html/storage/app/public
+volumes:
+  vendor_data:

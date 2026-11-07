@@ -1,0 +1,2 @@
+@extends('layouts.app')
+@section('content')<div class="container py-5"><div class="row justify-content-center"><div class="col-md-6"><h1 class="h3">Lupa kata sandi</h1><p>Masukkan email akun. Kami akan mengirim tautan reset bila email terdaftar.</p><form method="post" action="{{ route('password.email') }}">@csrf<input class="form-control mb-3" type="email" name="email" required><button class="btn btn-brand">Kirim tautan</button></form></div></div></div>@endsection

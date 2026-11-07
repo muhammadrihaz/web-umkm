@@ -1,0 +1,3 @@
+@extends('layouts.app')
+@section('title','Informasi Usaha')
+@section('content')<div class="container py-5"><h1>Informasi Usaha</h1><div class="card shadow-sm mt-4"><div class="card-body"><h2 class="h4">{{ config('pangkonan.business.name') }}</h2><p>{{ config('pangkonan.business.address') }}</p>@if(config('pangkonan.business.whatsapp'))<a class="btn btn-success" target="_blank" rel="noopener" href="https://wa.me/{{ preg_replace('/\D/', '', config('pangkonan.business.whatsapp')) }}?text={{ urlencode('Halo, saya ingin bertanya tentang produk Pangkonan.') }}">Hubungi via WhatsApp</a>@else<div class="alert alert-warning mb-0">Nomor WhatsApp usaha belum dikonfigurasi.</div>@endif</div></div></div>@endsection

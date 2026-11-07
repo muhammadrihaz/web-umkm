@@ -1,0 +1,99 @@
+name: pangkonan-umkm
+
+x-app: &app
+  build:
+    context: .
+    target: runtime
+    args:
+      APP_UID: ${APP_UID:-1000}
+      APP_GID: ${APP_GID:-1000}
+  image: pangkonan-umkm-app:local
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    mysql:
+      condition: service_healthy
+  volumes:
+    - uploads:/var/www/html/storage/app/public
+
+services:
+  nginx:
+    build:
+      context: .
+      target: web
+    image: pangkonan-umkm-web:local
+    ports: ["${APP_PORT:-8085}:80"]
+    restart: unless-stopped
+    depends_on: [app]
+    volumes:
+      - uploads:/var/www/html/storage/app/public:ro
+  app:
+    <<: *app
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+  mysql:
+    image: mysql:8.4.13
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-pangkonan}
+      MYSQL_USER: ${DB_USERNAME:-pangkonan}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD wajib diisi}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD wajib diisi}
+      TZ: UTC
+    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    volumes: [mysql_data:/var/lib/mysql]
+  queue:
+    <<: *app
+    stop_grace_period: 30s
+    command: ["php", "artisan", "queue:work", "database", "--sleep=3", "--tries=5", "--backoff=10,30,120", "--timeout=90"]
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+  node:
+    image: node:24.11-bookworm-slim
+    profiles: [development]
+    working_dir: /app
+    user: node
+    ports: ["${VITE_PORT:-5173}:5173"]
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    command: ["sh", "-lc", "npm install && npm run dev -- --host 0.0.0.0"]
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    profiles: [development]
+    ports: ["${MAILPIT_PORT:-8025}:8025"]
+  test:
+    build:
+      context: .
+      target: test
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    image: pangkonan-umkm-test:local
+    profiles: [testing]
+    env_file: .env
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: pangkonan_test
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+    command: ["php", "artisan", "test", "--compact"]
+
+volumes:
+  mysql_data:
+  uploads:
+  node_modules:
