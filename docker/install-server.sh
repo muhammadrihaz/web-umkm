@@ -133,7 +133,7 @@ docker compose exec -T \
     -e ADMIN_NAME="$ADMIN_NAME" \
     -e ADMIN_EMAIL="$ADMIN_EMAIL" \
     -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-    app php artisan tinker --execute='$admin = App\Models\User::query()->updateOrCreate(["email" => getenv("ADMIN_EMAIL")], ["name" => getenv("ADMIN_NAME"), "password" => getenv("ADMIN_PASSWORD")]); $admin->forceFill(["role" => "admin"])->save();'
+    app php artisan app:ensure-admin --no-interaction
 
 unset ADMIN_PASSWORD ADMIN_PASSWORD_CONFIRMATION
 

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthAuthorizationTest extends TestCase
@@ -30,5 +31,19 @@ class AuthAuthorizationTest extends TestCase
     public function test_admin_can_open_admin_dashboard(): void
     {
         $this->actingAs(User::factory()->admin()->create())->get('/admin')->assertOk();
+    }
+
+    public function test_ensure_admin_command_creates_a_verified_admin_account(): void
+    {
+        $this->artisan('app:ensure-admin', [
+            '--name' => 'Administrator Produksi',
+            '--email' => 'admin@example.test',
+            '--password' => 'StrongPassword123!',
+        ])->assertSuccessful();
+
+        $admin = User::query()->where('email', 'admin@example.test')->firstOrFail();
+
+        $this->assertTrue($admin->isAdmin());
+        $this->assertTrue(Hash::check('StrongPassword123!', $admin->password));
     }
 }
