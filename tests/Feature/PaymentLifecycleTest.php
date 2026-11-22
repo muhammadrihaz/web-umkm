@@ -24,6 +24,16 @@ class PaymentLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_customer_can_open_order_details_before_payment(): void
+    {
+        [$order] = $this->pendingOrder();
+
+        $this->actingAs($order->user)->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee($order->order_number)
+            ->assertSee('Bayar / lanjutkan pembayaran');
+    }
+
     public function test_payment_button_opens_midtrans_and_reuses_the_existing_session(): void
     {
         [$order, $payment] = $this->pendingOrder();
