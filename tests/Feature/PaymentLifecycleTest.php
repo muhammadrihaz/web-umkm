@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Services\CheckoutService;
 use App\Services\MidtransGateway;
 use App\Services\PaymentService;
+use Exception;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Mockery\MockInterface;
@@ -21,6 +23,50 @@ use Tests\TestCase;
 class PaymentLifecycleTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_payment_button_opens_midtrans_and_reuses_the_existing_session(): void
+    {
+        [$order, $payment] = $this->pendingOrder();
+        $redirectUrl = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test-token';
+        $this->mock(MidtransGateway::class, function (MockInterface $mock) use ($redirectUrl): void {
+            $mock->shouldReceive('createTransaction')->once()
+                ->andReturn(['token' => 'test-token', 'redirect_url' => $redirectUrl]);
+        });
+
+        $this->actingAs($order->user)->post(route('payments.initialize', $order))->assertRedirect($redirectUrl);
+        $this->post(route('payments.initialize', $order))->assertRedirect($redirectUrl);
+
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id, 'status' => PaymentStatus::Pending->value,
+            'snap_token' => 'test-token', 'redirect_url' => $redirectUrl,
+        ]);
+        $this->assertSame(PaymentStatus::Unpaid, $order->refresh()->payment_status);
+    }
+
+    public function test_midtrans_failure_returns_an_error_without_marking_the_order_paid(): void
+    {
+        [$order, $payment, $product] = $this->pendingOrder();
+        config(['pangkonan.midtrans.server_key' => 'test-private-key']);
+        Log::spy();
+        $this->mock(MidtransGateway::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('createTransaction')->once()
+                ->andThrow(new Exception('Access denied: test-private-key', 401));
+        });
+
+        $this->actingAs($order->user)->from(route('orders.show', $order))
+            ->post(route('payments.initialize', $order))
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHasErrors(['payment' => 'Sesi pembayaran belum dapat dibuat. Silakan coba lagi atau hubungi toko.']);
+
+        $this->assertDatabaseHas('payments', ['id' => $payment->id, 'snap_token' => null, 'redirect_url' => null]);
+        $this->assertSame(PaymentStatus::Unpaid, $order->refresh()->payment_status);
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock_on_hand' => 5, 'stock_reserved' => 2]);
+        Log::shouldHaveReceived('warning')->once()->with('Gagal membuat sesi pembayaran Midtrans', \Mockery::on(
+            fn (array $context): bool => $context['payment_id'] === $payment->id
+                && $context['error_code'] === 401 && $context['error'] === 'Access denied: [redacted]',
+        ));
+    }
 
     public function test_paid_is_idempotent_and_a_late_pending_event_cannot_downgrade_it(): void
     {

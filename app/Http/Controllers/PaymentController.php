@@ -21,7 +21,7 @@ class PaymentController extends Controller
         $this->authorize('view', $order);
         $payment = $service->initialize($order);
 
-        return redirect()->route('orders.show', $order)->with('success', 'Sesi pembayaran siap.')->with('snap_token', $payment->snap_token);
+        return redirect()->away($payment->redirect_url);
     }
 
     public function webhook(Request $request, PaymentService $service, MidtransGateway $gateway): JsonResponse

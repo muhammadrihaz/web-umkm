@@ -7,7 +7,9 @@ use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAdjustment;
+use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -43,7 +45,26 @@ class PaymentService
             return $payment;
         }
 
-        $result = $this->gateway->createTransaction($order->loadMissing('user', 'items'), $payment);
+        try {
+            $result = $this->gateway->createTransaction($order->loadMissing('user', 'items'), $payment);
+        } catch (Exception $exception) {
+            $serverKey = (string) config('pangkonan.midtrans.server_key');
+            $error = $exception->getMessage();
+            if ($serverKey !== '') {
+                $error = str_replace([$serverKey, base64_encode($serverKey.':')], '[redacted]', $error);
+            }
+            Log::warning('Gagal membuat sesi pembayaran Midtrans', [
+                'order_id' => $order->id,
+                'payment_id' => $payment->id,
+                'is_production' => (bool) config('pangkonan.midtrans.is_production'),
+                'error_code' => $exception->getCode(),
+                'error' => $error,
+            ]);
+
+            throw ValidationException::withMessages([
+                'payment' => 'Sesi pembayaran belum dapat dibuat. Silakan coba lagi atau hubungi toko.',
+            ]);
+        }
         $payment->update(['snap_token' => $result['token'], 'redirect_url' => $result['redirect_url'], 'status' => PaymentStatus::Pending]);
 
         return $payment->refresh();
