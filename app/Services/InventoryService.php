@@ -78,7 +78,8 @@ class InventoryService
                 throw ValidationException::withMessages(['stock_on_hand' => 'Stok tidak boleh lebih kecil dari jumlah yang sedang dicadangkan.']);
             }
             $delta = $newStock - $locked->stock_on_hand;
-            $locked->update(['stock_on_hand' => $newStock]);
+            $locked->stock_on_hand = $newStock;
+            $locked->save();
             $this->recordEffect($locked, 'adjustment', (string) now()->getTimestampMs(), 'adjust', $delta, 0, $reason, $actor);
 
             return $locked->refresh();
