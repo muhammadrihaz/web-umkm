@@ -21,8 +21,10 @@ class MidtransGateway
     /** @return array{token: string, redirect_url: string} */
     public function createTransaction(Order $order, Payment $payment): array
     {
+        $returnUrl = rtrim((string) config('app.url'), '/').route('orders.show', $order, false);
         $payload = [
             'transaction_details' => ['order_id' => $payment->provider_order_id, 'gross_amount' => $order->total],
+            'callbacks' => ['finish' => $returnUrl, 'error' => $returnUrl],
             'customer_details' => ['first_name' => $order->recipient_name, 'email' => $order->user->email, 'phone' => $order->recipient_phone],
             'item_details' => $order->items->map(fn ($item): array => ['id' => $item->sku, 'price' => $item->unit_price, 'quantity' => $item->quantity, 'name' => mb_substr($item->product_name, 0, 50)])->when($order->delivery_fee > 0, fn ($items) => $items->push(['id' => 'DELIVERY', 'price' => $order->delivery_fee, 'quantity' => 1, 'name' => 'Ongkir lokal']))->values()->all(),
         ];
